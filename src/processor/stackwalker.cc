@@ -327,7 +327,7 @@ bool Stackwalker::InstructionAddressSeemsValid(uint64_t address) const {
     return true;
   }
 
-  return !frame.function_name.empty();
+  return true;
 }
 
 }  // namespace google_breakpad
