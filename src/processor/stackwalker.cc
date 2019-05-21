@@ -193,11 +193,29 @@ bool Stackwalker::Walk(
   return true;
 }
 
+MemoryRegion *GetActualStackMemory(
+    uint64_t stack_pointer,
+    MemoryRegion* thread_memory,
+    MinidumpMemoryList* memory_list) {
+  if (!stack_pointer || !memory_list) {
+    return thread_memory;
+  }
+
+  uint64_t ignored;
+  if (thread_memory->GetMemoryAtAddress(stack_pointer, &ignored)) {
+    return thread_memory;
+  }
+
+  MemoryRegion *actual_memory = memory_list->GetMemoryRegionForAddress(stack_pointer);
+  return actual_memory ? actual_memory : thread_memory;
+}
+
 // static
 Stackwalker* Stackwalker::StackwalkerForCPU(
     const SystemInfo* system_info,
     DumpContext* context,
     MemoryRegion* memory,
+    MinidumpMemoryList* memory_list,
     const CodeModules* modules,
     const CodeModules* unloaded_modules,
     StackFrameSymbolizer* frame_symbolizer) {
@@ -211,60 +229,93 @@ Stackwalker* Stackwalker::StackwalkerForCPU(
   uint32_t cpu = context->GetContextCPU();
   switch (cpu) {
     case MD_CONTEXT_X86:
+    {
+      const MDRawContextX86* context_x86 = context->GetContextX86();
+      memory = GetActualStackMemory(context_x86->esp, memory, memory_list);
       cpu_stackwalker = new StackwalkerX86(system_info,
-                                           context->GetContextX86(),
+                                           context_x86,
                                            memory, modules, frame_symbolizer);
       break;
+    }
 
     case MD_CONTEXT_PPC:
+    {
+      const MDRawContextPPC* context_ppc = context->GetContextPPC();
+      memory = GetActualStackMemory(context_ppc->gpr[1], memory, memory_list);
       cpu_stackwalker = new StackwalkerPPC(system_info,
-                                           context->GetContextPPC(),
+                                           context_ppc,
                                            memory, modules, frame_symbolizer);
       break;
+    }
 
     case MD_CONTEXT_PPC64:
+    {
+      const MDRawContextPPC64* context_ppc64 = context->GetContextPPC64();
+      memory = GetActualStackMemory(context_ppc64->gpr[1], memory, memory_list);
       cpu_stackwalker = new StackwalkerPPC64(system_info,
-                                             context->GetContextPPC64(),
+                                             context_ppc64,
                                              memory, modules, frame_symbolizer);
       break;
+    }
 
     case MD_CONTEXT_AMD64:
+    {
+      const MDRawContextAMD64* context_amd64 = context->GetContextAMD64();
+      memory = GetActualStackMemory(context_amd64->rsp, memory, memory_list);
       cpu_stackwalker = new StackwalkerAMD64(system_info,
-                                             context->GetContextAMD64(),
+                                             context_amd64,
                                              memory, modules, frame_symbolizer);
       break;
+    }
 
     case MD_CONTEXT_SPARC:
+    {
+      const MDRawContextSPARC* context_sparc = context->GetContextSPARC();
+      memory = GetActualStackMemory(context_sparc->g_r[14], memory, memory_list);
       cpu_stackwalker = new StackwalkerSPARC(system_info,
-                                             context->GetContextSPARC(),
+                                             context_sparc,
                                              memory, modules, frame_symbolizer);
       break;
+    }
 
     case MD_CONTEXT_MIPS:
     case MD_CONTEXT_MIPS64:
+    {
+      const MDRawContextMIPS* context_mips = context->GetContextMIPS();
+      memory = GetActualStackMemory(context_mips->iregs[MD_CONTEXT_MIPS_REG_SP],
+                                    memory, memory_list);
       cpu_stackwalker = new StackwalkerMIPS(system_info,
-                                            context->GetContextMIPS(),
+                                            context_mips,
                                             memory, modules, frame_symbolizer);
       break;
+    }
 
     case MD_CONTEXT_ARM:
     {
       int fp_register = -1;
       if (system_info->os_short == "ios")
         fp_register = MD_CONTEXT_ARM_REG_IOS_FP;
+      const MDRawContextARM* context_arm = context->GetContextARM();
+      memory = GetActualStackMemory(context_arm->iregs[MD_CONTEXT_ARM_REG_SP],
+                                    memory, memory_list);
       cpu_stackwalker = new StackwalkerARM(system_info,
-                                           context->GetContextARM(),
+                                           context_arm,
                                            fp_register, memory, modules,
                                            frame_symbolizer);
       break;
     }
 
     case MD_CONTEXT_ARM64:
+    {
+      const MDRawContextARM64* context_arm64 = context->GetContextARM64();
+      memory = GetActualStackMemory(context_arm64->iregs[MD_CONTEXT_ARM64_REG_SP],
+                                    memory, memory_list);
       cpu_stackwalker = new StackwalkerARM64(system_info,
-                                             context->GetContextARM64(),
+                                             context_arm64,
                                              memory, modules,
                                              frame_symbolizer);
       break;
+    }
   }
 
   BPLOG_IF(ERROR, !cpu_stackwalker) << "Unknown CPU type " << HexString(cpu) <<
