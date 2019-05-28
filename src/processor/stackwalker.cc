@@ -202,7 +202,7 @@ MemoryRegion *GetActualStackMemory(
   }
 
   uint64_t ignored;
-  if (thread_memory->GetMemoryAtAddress(stack_pointer, &ignored)) {
+  if (thread_memory && thread_memory->GetMemoryAtAddress(stack_pointer, &ignored)) {
     return thread_memory;
   }
 
