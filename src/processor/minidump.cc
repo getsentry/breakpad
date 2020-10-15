@@ -2206,6 +2206,11 @@ string MinidumpModule::debug_identifier() const {
       memcpy(&guid, &cv_record_elf->build_id,
              std::min(cv_record_->size() - MDCVInfoELF_minsize,
                       sizeof(MDGUID)));
+      if (minidump_->swap()) {
+        Swap(&guid.data1);
+        Swap(&guid.data2);
+        Swap(&guid.data3);
+      }
       identifier = guid_and_age_to_debug_id(guid, 0);
     }
   }
