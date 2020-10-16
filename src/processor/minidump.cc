@@ -2207,6 +2207,15 @@ string MinidumpModule::debug_identifier() const {
              std::min(cv_record_->size() - MDCVInfoELF_minsize,
                       sizeof(MDGUID)));
       if (minidump_->swap()) {
+        // The debug_identifier needs to be computed for a big-endian
+        // MDGUID.  However if the host is LE reading into MDGUID
+        // implicitly reversed the order they are printed as
+        // guid_and_age_to_debug prints as hex numbers, not as bytes.
+        // This leads to 4 cases:
+        // BE dump on BE host: nothing swapped, printed in order
+        // BE dump on LE host: swap bytes & swapped back by MDGUID ints
+        // LE dump on BE host: swap bytes & printed in order
+        // LE dump on LE host: swapped by MDGUID ints
         Swap(&guid.data1);
         Swap(&guid.data2);
         Swap(&guid.data3);
