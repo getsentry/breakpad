@@ -119,6 +119,16 @@ struct ExceptionReplyMessage {
 exception_mask_t s_exception_mask = EXC_MASK_BAD_ACCESS |
 EXC_MASK_BAD_INSTRUCTION | EXC_MASK_ARITHMETIC | EXC_MASK_BREAKPOINT;
 
+// The equivalent signals for the above exception mask
+int s_signals[] = {
+  SIGSEGV, // EXC_MASK_BAD_ACCESS
+  SIGBUS, // EXC_MASK_BAD_ACCESS
+  SIGILL, // EXC_MASK_BAD_INSTRUCTION
+  SIGFPE, // EXC_MASK_ARITHMETIC
+  SIGTRAP, // EXC_MASK_BREAKPOINT
+  SIGABRT, // EXC_SOFTWARE/EXC_UNIX_ABORT - Additional signal is by default the only signal handled by breakpad
+};
+
 #if !TARGET_OS_IPHONE
 extern "C" {
   // Forward declarations for functions that need "C" style compilation
@@ -220,11 +230,26 @@ kern_return_t catch_exception_raise(mach_port_t port, mach_port_t failed_thread,
 }
 #endif
 
+typedef void (*action_fn)(int, siginfo_t*, void*);
+
+bool swap_signal_handler(int signal, action_fn action, OldHandler* old_handler) {
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sigemptyset(&sa.sa_mask);
+  sigaddset(&sa.sa_mask, signal);
+  sa.sa_sigaction = action;
+  sa.sa_flags = SA_SIGINFO;
+
+  old_handler->signum = signal;
+
+  return sigaction(signal, &sa, &old_handler->old) != -1;
+}
+
 ExceptionHandler::ExceptionHandler(const string& dump_path,
                                    FilterCallback filter,
                                    MinidumpCallback callback,
                                    void* callback_context,
-                                   bool install_handler,
+                                   InstallOptions install_opts,
                                    const char* port_name)
     : dump_path_(),
       filter_(filter),
@@ -245,14 +270,14 @@ ExceptionHandler::ExceptionHandler(const string& dump_path,
   if (port_name)
     crash_generation_client_.reset(new CrashGenerationClient(port_name));
 #endif
-  Setup(install_handler);
+  Setup(install_opts);
 }
 
 // special constructor if we want to bypass minidump writing and
 // simply get a callback with the exception information
 ExceptionHandler::ExceptionHandler(DirectCallback callback,
                                    void* callback_context,
-                                   bool install_handler)
+                                   InstallOptions install_opts)
     : dump_path_(),
       filter_(NULL),
       callback_(NULL),
@@ -266,7 +291,7 @@ ExceptionHandler::ExceptionHandler(DirectCallback callback,
       last_minidump_write_result_(false),
       use_minidump_write_mutex_(false) {
   MinidumpGenerator::GatherSystemInformation();
-  Setup(install_handler);
+  Setup(install_opts);
 }
 
 ExceptionHandler::~ExceptionHandler() {
@@ -308,7 +333,7 @@ bool ExceptionHandler::WriteMinidump(const string& dump_path,
                                      bool write_exception_stream,
                                      MinidumpCallback callback,
                                      void* callback_context) {
-  ExceptionHandler handler(dump_path, NULL, callback, callback_context, false,
+  ExceptionHandler handler(dump_path, NULL, callback, callback_context, KNoHandlers,
                            NULL);
   return handler.WriteMinidump(write_exception_stream);
 }
@@ -618,38 +643,93 @@ void ExceptionHandler::SignalHandler(int sig, siginfo_t* info, void* uc) {
   if (gBreakpadAllocator)
     gBreakpadAllocator->Unprotect();
 #endif
+
+  int exc;
+  // Looking at the code ux_handler https://opensource.apple.com/source/xnu/xnu-201.5/bsd/uxkern/ux_exception.c.auto.html
+  // this is a mapping of the exceptions code[1], filled out for specific
+  // architectures via machine_exception if it's eg MD_EXCEPTION_MAC_ARITHMETIC
+  int code = info->si_code;
+
+  switch (sig) {
+    // The difference between SIGBUS and SIGSEGV must be carefully noted. Both
+    // correspond to a bad memory access, but for different reasons. A SIGBUS
+    // (bus error) occurs when the memory is valid in that it is mapped, but the
+    // victim is not allowed to access it. Accessing page 0, which is normally
+    // mapped into each address space with all access to it disallowed, will
+    // result in a SIGBUS. In contrast, a SIGSEGV (segmentation fault) occurs
+    // when the memory address is invalid in that it is not even mapped.
+    case SIGSEGV:
+    case SIGBUS: {
+      exc = MD_EXCEPTION_MAC_BAD_ACCESS;
+      break;
+    }
+    case SIGILL: {
+      exc = MD_EXCEPTION_MAC_BAD_INSTRUCTION;
+      break;
+    }
+    case SIGFPE: {
+      exc = MD_EXCEPTION_MAC_ARITHMETIC;
+      break;
+    }
+    case SIGTRAP: {
+      exc = EXC_BREAKPOINT;
+      break;
+    }
+    case SIGABRT:
+    default: {
+      exc = EXC_SOFTWARE;
+      code = MD_EXCEPTION_CODE_MAC_ABORT;
+      break;
+    }
+  };
+
+
   gProtectedData.handler->WriteMinidumpWithException(
-      EXC_SOFTWARE,
-      MD_EXCEPTION_CODE_MAC_ABORT,
+      exc,
+      code,
       0,
       static_cast<breakpad_ucontext_t*>(uc),
       mach_thread_self(),
       true,
-      true);
+      true
+  );
+
+
 #if USE_PROTECTED_ALLOCATIONS
   if (gBreakpadAllocator)
     gBreakpadAllocator->Protect();
 #endif
 }
 
-bool ExceptionHandler::InstallHandler() {
+bool ExceptionHandler::InstallHandler(InstallOptions install_opts) {
   // If a handler is already installed, something is really wrong.
-  if (gProtectedData.handler != NULL) {
+  if (gProtectedData.handler != NULL && (install_opts & kSignalHandler) != 0) {
     return false;
   }
-  if (!IsOutOfProcess()) {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sigaddset(&sa.sa_mask, SIGABRT);
-    sa.sa_sigaction = ExceptionHandler::SignalHandler;
-    sa.sa_flags = SA_SIGINFO;
 
-    scoped_ptr<struct sigaction> old(new struct sigaction);
-    if (sigaction(SIGABRT, &sa, old.get()) == -1) {
-      return false;
+  if (!IsOutOfProcess() && (install_opts & kSignalHandler) != 0) {
+    // TODO: sigaltstack
+
+    // If we're also handling exceptions, only add SIGABRT, otherwise
+    // add handlers for the full set of signals we can handle
+    if ((install_opts & kExceptionHandler) != 0) {
+      OldHandler prev;
+      if (!swap_signal_handler(SIGABRT, ExceptionHandler::SignalHandler, &prev)) {
+        return false;
+      }
+
+      old_handlers_.push_back(prev);
+    } else {
+      for (auto i = 0; i < sizeof(s_signals) / sizeof(int); ++i) {
+        OldHandler prev;
+        if (!swap_signal_handler(s_signals[i], ExceptionHandler::SignalHandler, &prev)) {
+          return false;
+        }
+
+        old_handlers_.push_back(prev);
+      }
     }
-    old_handler_.swap(old);
+
     gProtectedData.handler = this;
 #if USE_PROTECTED_ALLOCATIONS
     assert(((size_t)(gProtectedData.protected_buffer) & PAGE_MASK) == 0);
@@ -657,51 +737,57 @@ bool ExceptionHandler::InstallHandler() {
 #endif
   }
 
-  try {
-#if USE_PROTECTED_ALLOCATIONS
-    previous_ = new (gBreakpadAllocator->Allocate(sizeof(ExceptionParameters)) )
-      ExceptionParameters();
-#else
-    previous_ = new ExceptionParameters();
-#endif
+  if (install_opts & kExceptionHandler) {
+    try {
+  #if USE_PROTECTED_ALLOCATIONS
+      previous_ = new (gBreakpadAllocator->Allocate(sizeof(ExceptionParameters)) )
+        ExceptionParameters();
+  #else
+      previous_ = new ExceptionParameters();
+  #endif
+    }
+    catch (std::bad_alloc) {
+      return false;
+    }
+
+    // Save the current exception ports so that we can forward to them
+    previous_->count = EXC_TYPES_COUNT;
+    mach_port_t current_task = mach_task_self();
+    kern_return_t result = task_get_exception_ports(current_task,
+                                                    s_exception_mask,
+                                                    previous_->masks,
+                                                    &previous_->count,
+                                                    previous_->ports,
+                                                    previous_->behaviors,
+                                                    previous_->flavors);
+
+    // Setup the exception ports on this task
+    if (result == KERN_SUCCESS)
+      result = task_set_exception_ports(current_task, s_exception_mask,
+                                        handler_port_, EXCEPTION_DEFAULT,
+                                        THREAD_STATE_NONE);
+
+    installed_exception_handler_ = (result == KERN_SUCCESS);
   }
-  catch (std::bad_alloc) {
-    return false;
-  }
 
-  // Save the current exception ports so that we can forward to them
-  previous_->count = EXC_TYPES_COUNT;
-  mach_port_t current_task = mach_task_self();
-  kern_return_t result = task_get_exception_ports(current_task,
-                                                  s_exception_mask,
-                                                  previous_->masks,
-                                                  &previous_->count,
-                                                  previous_->ports,
-                                                  previous_->behaviors,
-                                                  previous_->flavors);
-
-  // Setup the exception ports on this task
-  if (result == KERN_SUCCESS)
-    result = task_set_exception_ports(current_task, s_exception_mask,
-                                      handler_port_, EXCEPTION_DEFAULT,
-                                      THREAD_STATE_NONE);
-
-  installed_exception_handler_ = (result == KERN_SUCCESS);
-
-  return installed_exception_handler_;
+  return (installed_exception_handler_ || (install_opts & kExceptionHandler) == 0);
 }
 
 bool ExceptionHandler::UninstallHandler(bool in_exception) {
   kern_return_t result = KERN_SUCCESS;
 
-  if (old_handler_.get()) {
-    sigaction(SIGABRT, old_handler_.get(), NULL);
+  if (!old_handlers_.empty()) {
+    for (auto handler : old_handlers_) {
+      sigaction(handler.signum, &handler.old, NULL);
+    }
+
 #if USE_PROTECTED_ALLOCATIONS
     mprotect(gProtectedData.protected_buffer, PAGE_SIZE,
         PROT_READ | PROT_WRITE);
 #endif
-    old_handler_.reset();
+
     gProtectedData.handler = NULL;
+    old_handlers_.clear();
   }
 
   if (installed_exception_handler_) {
@@ -733,7 +819,7 @@ bool ExceptionHandler::UninstallHandler(bool in_exception) {
   return result == KERN_SUCCESS;
 }
 
-bool ExceptionHandler::Setup(bool install_handler) {
+bool ExceptionHandler::Setup(InstallOptions install_opts) {
   if (pthread_mutex_init(&minidump_write_mutex_, NULL))
     return false;
 
@@ -747,19 +833,21 @@ bool ExceptionHandler::Setup(bool install_handler) {
     result = mach_port_insert_right(current_task, handler_port_, handler_port_,
                                     MACH_MSG_TYPE_MAKE_SEND);
 
-  if (install_handler && result == KERN_SUCCESS)
-    if (!InstallHandler())
+  if (install_opts != KNoHandlers && result == KERN_SUCCESS)
+  {
+    if (!InstallHandler(install_opts))
       return false;
 
-  if (result == KERN_SUCCESS) {
-    // Install the handler in its own thread, detached as we won't be joining.
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    int thread_create_result = pthread_create(&handler_thread_, &attr,
-                                              &WaitForMessage, this);
-    pthread_attr_destroy(&attr);
-    result = thread_create_result ? KERN_FAILURE : KERN_SUCCESS;
+    if (result == KERN_SUCCESS) {
+      // Install the handler in its own thread, detached as we won't be joining.
+      pthread_attr_t attr;
+      pthread_attr_init(&attr);
+      pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+      int thread_create_result = pthread_create(&handler_thread_, &attr,
+                                                &WaitForMessage, this);
+      pthread_attr_destroy(&attr);
+      result = thread_create_result ? KERN_FAILURE : KERN_SUCCESS;
+    }
   }
 
   return result == KERN_SUCCESS;

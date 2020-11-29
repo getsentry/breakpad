@@ -40,6 +40,7 @@
 #include <TargetConditionals.h>
 
 #include <string>
+#include <vector>
 
 #include "client/mac/handler/ucontext_compat.h"
 #include "common/scoped_ptr.h"
@@ -62,6 +63,18 @@ enum HandlerThreadMessage {
   kWriteDumpWithExceptionMessage = 1,
   // Message ID telling the handler thread to quit.
   kShutdownMessage = 2
+};
+
+enum InstallOptions {
+  KNoHandlers = 0x0,
+  kExceptionHandler = 0x1,
+  kSignalHandler = 0x2,
+  kBothHandlers = kExceptionHandler | kSignalHandler,
+};
+
+struct OldHandler {
+  struct sigaction old;
+  int signum;
 };
 
 class ExceptionHandler {
@@ -108,14 +121,14 @@ class ExceptionHandler {
   // If port_name is NULL, in-process dump generation will be used.
   ExceptionHandler(const string& dump_path,
                    FilterCallback filter, MinidumpCallback callback,
-                   void* callback_context, bool install_handler,
+                   void* callback_context, InstallOptions install_opts,
                    const char* port_name);
 
   // A special constructor if we want to bypass minidump writing and
   // simply get a callback with the exception information.
   ExceptionHandler(DirectCallback callback,
                    void* callback_context,
-                   bool install_handler);
+                   InstallOptions install_opts);
 
   ~ExceptionHandler();
 
@@ -166,14 +179,14 @@ class ExceptionHandler {
 
  private:
   // Install the mach exception handler
-  bool InstallHandler();
+  bool InstallHandler(InstallOptions install_opts);
 
   // Uninstall the mach exception handler (if any)
   bool UninstallHandler(bool in_exception);
 
   // Setup the handler thread, and if |install_handler| is true, install the
   // mach exception port handler
-  bool Setup(bool install_handler);
+  bool Setup(InstallOptions install_opts);
 
   // Uninstall the mach exception handler (if any) and terminate the helper
   // thread
@@ -268,7 +281,8 @@ class ExceptionHandler {
 
   // Old signal handler for SIGABRT. Used to be able to restore it when
   // uninstalling.
-  scoped_ptr<struct sigaction> old_handler_;
+  //scoped_ptr<struct sigaction> old_handler_;
+  std::vector<OldHandler> old_handlers_;
 
 #if !TARGET_OS_IPHONE
   // Client for out-of-process dump generation.
