@@ -69,6 +69,8 @@ class CFIFrameInfo {
   template<typename ValueType> class RegisterValueMap: 
     public map<string, ValueType> { };
 
+  virtual ~CFIFrameInfo() {}
+
   // Set the expression for computing a call frame address, return
   // address, or register's value. At least the CFA rule and the RA
   // rule must be set before calling FindCallerRegs.
@@ -100,6 +102,13 @@ class CFIFrameInfo {
                       const MemoryRegion& memory,
                       RegisterValueMap<ValueType>* caller_registers) const;
 
+  virtual bool FindCallerRegs(const RegisterValueMap<uint32_t>& registers,
+                              const MemoryRegion& memory,
+                              RegisterValueMap<uint32_t>* caller_registers) const;
+
+  virtual bool FindCallerRegs(const RegisterValueMap<uint64_t>& registers,
+                              const MemoryRegion& memory,
+                              RegisterValueMap<uint64_t>* caller_registers) const;
   // Serialize the rules in this object into a string in the format
   // of STACK CFI records.
   string Serialize() const;

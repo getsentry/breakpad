@@ -92,14 +92,19 @@ bool CFIFrameInfo::FindCallerRegs(const RegisterValueMap<V>& registers,
 }
 
 // Explicit instantiations for 32-bit and 64-bit architectures.
-template bool CFIFrameInfo::FindCallerRegs<uint32_t>(
+bool CFIFrameInfo::FindCallerRegs(
     const RegisterValueMap<uint32_t>& registers,
     const MemoryRegion& memory,
-    RegisterValueMap<uint32_t>* caller_registers) const;
-template bool CFIFrameInfo::FindCallerRegs<uint64_t>(
+    RegisterValueMap<uint32_t>* caller_registers) const {
+        return FindCallerRegs<uint32_t>(registers, memory, caller_registers);
+    }
+
+bool CFIFrameInfo::FindCallerRegs(
     const RegisterValueMap<uint64_t>& registers,
     const MemoryRegion& memory,
-    RegisterValueMap<uint64_t>* caller_registers) const;
+    RegisterValueMap<uint64_t>* caller_registers) const {
+        return FindCallerRegs<uint64_t>(registers, memory, caller_registers);
+    }
 
 string CFIFrameInfo::Serialize() const {
   std::ostringstream stream;

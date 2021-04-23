@@ -62,8 +62,8 @@ bool SimpleCFIWalker<RegisterType, RawContextType>::FindCallerRegisters(
   }
 
   // Apply the rules, and see what register values they yield.
-  if (!cfi_frame_info.FindCallerRegs<RegisterType>(callee_registers, memory,
-                                                   &caller_registers))
+  if (!cfi_frame_info.FindCallerRegs(callee_registers, memory,
+                                     &caller_registers))
     return false;
 
   // Populate *caller_context with the values the rules placed in
