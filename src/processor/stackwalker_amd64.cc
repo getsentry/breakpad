@@ -186,7 +186,10 @@ StackFrameAMD64* StackwalkerAMD64::GetCallerByFramePointerRecovery(
 
     // If the recovered rip is not a canonical address it can't be
     // the return address, so rbp must not have been a frame pointer.
-    if (is_non_canonical(caller_rip)) {
+    // NOTE(swatinem): Frame pointer heuristics might be wrong and yield an IP
+    // which fails the check in `TerminateWalk`, so make sure we skip those early
+    // and resort to stack scanning instead.
+    if (is_non_canonical(caller_rip) || caller_rip < (1 << 12)) {
       return NULL;
     }
 
