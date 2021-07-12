@@ -108,6 +108,17 @@ void InsertSpecialAttentionModule(
   }
 }
 
+static bool is_trusted_frame(StackFrame *frame) {
+  switch (frame->trust) {
+    case StackFrame::FRAME_TRUST_NONE:
+    case StackFrame::FRAME_TRUST_SCAN:
+    case StackFrame::FRAME_TRUST_CFI_SCAN:
+      return false;
+    default:
+      return true;
+  }
+}
+
 bool Stackwalker::Walk(
     CallStack* stack,
     vector<const CodeModule*>* modules_without_symbols,
@@ -164,15 +175,13 @@ bool Stackwalker::Walk(
     }
 
     // Keep track of the number of dubious frames so far.
-    switch (frame.get()->trust) {
-       case StackFrame::FRAME_TRUST_NONE:
-       case StackFrame::FRAME_TRUST_SCAN:
-       case StackFrame::FRAME_TRUST_CFI_SCAN:
-         scanned_frames++;
-         break;
-      default:
-        break;
+    if (!is_trusted_frame(frame.get())) {
+      scanned_frames++;
     }
+
+    // XXX(swatinem): We speculatively walk over NULL/near-NULL frames,
+    // using the same condition as `TerminateWalk`.
+    bool is_speculative_frame = frame.get()->ReturnAddress() < (1 << 12);
 
     // Add the frame to the call stack.  Relinquish the ownership claim
     // over the frame, because the stack now owns it.
@@ -180,14 +189,28 @@ bool Stackwalker::Walk(
     if (stack->frames_.size() > max_frames_) {
       // Only emit an error message in the case where the limit
       // reached is the default limit, not set by the user.
-      if (!max_frames_set_)
+      if (!max_frames_set_) {
         BPLOG(ERROR) << "The stack is over " << max_frames_ << " frames.";
+        if (is_speculative_frame) {
+          delete stack->frames_.back();
+          stack->frames_.pop_back();
+        }
+      }
       break;
     }
 
     // Get the next frame and take ownership.
     bool stack_scan_allowed = scanned_frames < max_frames_scanned_;
-    frame.reset(GetCallerFrame(stack, stack_scan_allowed));
+    StackFrame* next_frame = GetCallerFrame(stack, stack_scan_allowed);
+    if (is_speculative_frame && (!next_frame || !is_trusted_frame(next_frame))) {
+      delete stack->frames_.back();
+      stack->frames_.pop_back();
+      if (next_frame) {
+        delete next_frame;
+      }
+      break;
+    }
+    frame.reset(next_frame);
   }
 
   return true;
@@ -335,9 +358,10 @@ bool Stackwalker::TerminateWalk(uint64_t caller_ip,
   // Treat an instruction address less than 4k as end-of-stack.
   // (using InstructionAddressSeemsValid() here is very tempting,
   // but we need to handle JITted code)
-  if (caller_ip < (1 << 12)) {
-    return true;
-  }
+  // XXX(swatinem): This check was moved into `Walk`.
+  // if (caller_ip < (1 << 12)) {
+  //   return true;
+  // }
 
   // NOTE: The stack address range is implicitly checked
   //   when the stack memory is accessed.
