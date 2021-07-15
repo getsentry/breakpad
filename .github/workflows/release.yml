@@ -1,0 +1,19 @@
+name: CMake
+on:
+  push:
+
+jobs:
+  cmake:
+    strategy:
+      matrix:
+        os: ['windows-latest', 'ubuntu-latest', 'macos-latest']
+    runs-on: ${{ matrix.os }}
+    name: "Build on major operating systems"
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: build
+        run: |
+          cmake -S . -B build
+          cmake --build build --parallel

@@ -30,15 +30,19 @@
 #ifndef BREAKPAD_COMMON_MACROS_H_
 #define BREAKPAD_COMMON_MACROS_H_
 
-// Ensure that this macro definition stays in a private header file: clang
-// suggests the first macro expanding to [[clang::fallthrough]] in its
-// diagnostics, so if BP_FALLTHROUGH is visible in code depending on breakpad,
-// clang would suggest BP_FALLTHROUGH for code depending on breakpad, instead of
-// the client code's own fallthrough macro.
-// TODO(thakis): Once everyone uses C++17, use its [[fallthrough]] instead.
-#if defined(__clang__)
+#if defined(__cplusplus) && defined(__has_cpp_attribute)
+
+#if __has_cpp_attribute(fallthrough)
+#define BP_FALLTHROUGH [[fallthrough]]
+#elif __has_cpp_attribute(clang::fallthrough)
 #define BP_FALLTHROUGH [[clang::fallthrough]]
-#else
+#elif __has_cpp_attribute(gnu::fallthrough)
+#define BP_FALLTHROUGH [[gnu::fallthrough]]
+#endif
+
+#endif // defined(__cplusplus) && defined(__has_cpp_attribute)
+
+#if !defined(BP_FALLTHROUGH)
 #define BP_FALLTHROUGH
 #endif
 

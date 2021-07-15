@@ -37,6 +37,10 @@
 #include <stab.h>
 #include <string.h>
 
+#ifndef N_UNDF
+#include <a.out.h>
+#endif
+
 #include <string>
 
 #include "common/using_std_string.h"
