@@ -49,7 +49,7 @@
 #include <string>
 
 #include "client/linux/handler/exception_handler.h"
-#include "third_party/lss/linux_syscall_support.h"
+#include "linux_syscall_support.h"
 
 namespace {
 

@@ -82,7 +82,7 @@
 #include "common/linux/linux_libc_support.h"
 #include "common/minidump_type_helper.h"
 #include "google_breakpad/common/minidump_format.h"
-#include "third_party/lss/linux_syscall_support.h"
+#include "linux_syscall_support.h"
 
 namespace {
 

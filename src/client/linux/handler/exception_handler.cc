@@ -98,7 +98,7 @@
 #include "client/linux/minidump_writer/linux_dumper.h"
 #include "client/linux/minidump_writer/minidump_writer.h"
 #include "common/linux/eintr_wrapper.h"
-#include "third_party/lss/linux_syscall_support.h"
+#include "linux_syscall_support.h"
 
 #if defined(__ANDROID__)
 #include "linux/sched.h"

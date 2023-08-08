@@ -42,7 +42,7 @@
 #include <unistd.h>
 
 #include "common/scoped_ptr.h"
-#include "third_party/lss/linux_syscall_support.h"
+#include "linux_syscall_support.h"
 
 #if defined(__ARM_EABI__)
 #define TID_PTR_REGISTER "r3"

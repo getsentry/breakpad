@@ -60,7 +60,7 @@
 #include "client/linux/minidump_writer/directory_reader.h"
 #include "client/linux/minidump_writer/line_reader.h"
 #include "common/linux/linux_libc_support.h"
-#include "third_party/lss/linux_syscall_support.h"
+#include "linux_syscall_support.h"
 
 // Suspends a thread by attaching to it.
 static bool SuspendThread(pid_t pid) {

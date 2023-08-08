@@ -55,7 +55,7 @@
 #include "common/using_std_string.h"
 #include "google_breakpad/common/breakpad_types.h"
 #include "google_breakpad/common/minidump_format.h"
-#include "third_party/lss/linux_syscall_support.h"
+#include "linux_syscall_support.h"
 #include "tools/linux/md2core/minidump_memory_range.h"
 
 #if ULONG_MAX == 0xffffffffffffffff

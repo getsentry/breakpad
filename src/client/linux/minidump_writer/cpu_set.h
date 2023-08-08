@@ -34,7 +34,7 @@
 #include <string.h>
 
 #include "common/linux/linux_libc_support.h"
-#include "third_party/lss/linux_syscall_support.h"
+#include "linux_syscall_support.h"
 
 namespace google_breakpad {
 
