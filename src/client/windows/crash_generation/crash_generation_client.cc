@@ -230,6 +230,9 @@ HANDLE CrashGenerationClient::ConnectToServer() {
 }
 
 bool CrashGenerationClient::RegisterClient(HANDLE pipe) {
+#ifdef _GAMING_XBOX_SCARLETT
+  return false;
+#else
   ProtocolMessage msg(MESSAGE_TAG_REGISTRATION_REQUEST,
                       GetCurrentProcessId(),
                       dump_type_,
@@ -271,6 +274,7 @@ bool CrashGenerationClient::RegisterClient(HANDLE pipe) {
   server_process_id_ = reply.id;
 
   return true;
+#endif // _GAMING_XBOX_SCARLETT
 }
 
 HANDLE CrashGenerationClient::ConnectToPipe(const wchar_t* pipe_name,
