@@ -1059,6 +1059,10 @@ void ExceptionHandler::UpdateNextID() {
     swprintf(minidump_path.data(), minidump_path_len, L"%s\\%s.dmp",
              dump_path_c_, next_minidump_id_c_);
   if (written < 0 || static_cast<size_t>(written) >= minidump_path.size()) {
+    // `swprintf` either encountered an encoding error or truncation.
+    // Let's reset the `next`-members and exit early to not cause overwriting.
+    next_minidump_path_.clear();
+    next_minidump_path_c_ = nullptr;
     return;
   }
 
