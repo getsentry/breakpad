@@ -8,13 +8,13 @@ This is a fork of [Google Breakpad](https://chromium.googlesource.com/breakpad/b
 - **Windows**: Xbox One build support
 - **Linux**: Cast `SIGSTKSZ` to int for compatibility with glibc 2.34+ (where it's no longer a compile-time constant)
 - **Build System**: CMake integration (see below)
-- **Minimum required C++17**
+- **C++17 standard requirement**: upstream uses C++20 (or newer).
 
 ## Build System Changes
 
 To minimize external dependencies and better integrate with `sentry-native`, this fork uses CMake instead of Breakpad's native Autotools/`configure` build system.
 
-The CMake build files are maintained in the parent `sentry-native` repository:
+The CMake build files are maintained in the parent `sentry-native` [repository](https://github.com/getsentry/sentry-native):
 
 - `../CMakeLists.txt` - Defines the `breakpad_client` target and lists all source files
 
