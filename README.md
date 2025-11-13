@@ -80,3 +80,8 @@ dependent repos are up-to-date.
     click on it, then “Add reviewer”, and enter in the code reviewer. Depending
     on your settings, you may not see an email, but the reviewer has been
     notified with google-breakpad-dev@googlegroups.com always CC’d.
+
+## Sentry modifications
+
+See [README.getsentry.md](README.getsentry.md) for more information on the
+changes, and on maintaining the fork.
