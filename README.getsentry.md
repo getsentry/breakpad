@@ -14,22 +14,6 @@ This is a fork of [Google Breakpad](https://chromium.googlesource.com/breakpad/b
 
 To minimize external dependencies and better integrate with `sentry-native`, this fork uses CMake instead of Breakpad's native Autotools/`configure` build system.
 
-The CMake build files are maintained in the parent `sentry-native` [repository](https://github.com/getsentry/sentry-native):
+The CMake build files are maintained in the parent [`sentry-native` repository](https://github.com/getsentry/sentry-native):
 
-- `../CMakeLists.txt` - Defines the `breakpad_client` target and lists all source files
-
-The source file list is derived from `breakpad/Makefile.am` but maintained manually in CMake format. When updating this fork, ensure the CMake file list stays in sync with any changes to the build configuration in upstream Breakpad.
-
-### Key Differences from Upstream Build
-
-- **No `configure` script**: The `./configure` file in this directory is unused. It's an artifact from upstream Breakpad.
-- **CMake only**: All builds use CMake with explicit source file lists
-- **C++17 required**: The CMake build enforces C++17 standard (set in `../CMakeLists.txt`)
-- **Client library only**: Only the client library (`breakpad_client`) is built, not the processor tools
-
-## How To Update
-
-1. Merge/rebase from upstream: `https://chromium.googlesource.com/breakpad/breakpad/`
-2. Check for changes in `Makefile.am` and update `../CMakeLists.txt` accordingly
-3. Review any new platform-specific code that might need adjustments for Xbox or modern glibc
-4. Test builds on all supported platforms (Windows, Linux, macOS, Xbox)
+- [`../../CMakeLists.txt`](https://github.com/getsentry/sentry-native/blob/master/CMakeLists.txt) - Defines the `breakpad_client` target and lists all source files
