@@ -4,10 +4,11 @@ This is a fork of [Google Breakpad](https://chromium.googlesource.com/breakpad/b
 
 ## Modifications
 
-- **Windows**: Dynamically size minidump paths instead of using `MAX_PATH` constant
-- **Windows**: Xbox One build support
-- **Linux**: Cast `SIGSTKSZ` to int for compatibility with glibc 2.34+ (where it's no longer a compile-time constant)
-- **Build System**: CMake integration (see below)
+- **Windows**: Dynamically size minidump paths instead of using `MAX_PATH` constant.
+- **Windows**: Xbox One build support.
+- **Linux**: Cast `SIGSTKSZ` to int for compatibility with glibc 2.34+ (where it's no longer a compile-time constant).
+- **Build System**: CMake integration (see below).
+- **macOS**: Extend the handler callback with a user-context (containing register state of the crash site) for x86_64 and arm64.
 - **C++17 standard requirement**: upstream uses C++20 (or newer).
 
 ## Build System Changes
