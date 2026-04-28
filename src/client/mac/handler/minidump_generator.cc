@@ -309,24 +309,35 @@ bool MinidumpGenerator::Write(const char* path) {
     if (!exception_thread_ && !exception_type_)
       --writer_count;
 
+    int stream_count = writer_count;
+    if (MinidumpFileWriter::LargeMinidumpTestStreamEnabled())
+      ++stream_count;
+
     // Add space for all writers
-    if (!dir.AllocateArray(writer_count))
+    if (!dir.AllocateArray(stream_count))
       return false;
 
     MDRawHeader* header_ptr = header.get();
     header_ptr->signature = MD_HEADER_SIGNATURE;
     header_ptr->version = MD_HEADER_VERSION;
     time(reinterpret_cast<time_t*>(&(header_ptr->time_date_stamp)));
-    header_ptr->stream_count = writer_count;
+    header_ptr->stream_count = stream_count;
     header_ptr->stream_directory_rva = dir.position();
 
     MDRawDirectory local_dir;
     result = true;
+    int dir_index = 0;
     for (int i = 0; (result) && (i < writer_count); ++i) {
       result = (this->*writers[i])(&local_dir);
 
       if (result)
-        dir.CopyIndex(i, &local_dir);
+        dir.CopyIndex(dir_index++, &local_dir);
+    }
+
+    if (result && MinidumpFileWriter::LargeMinidumpTestStreamEnabled()) {
+      result = writer_.WriteLargeMinidumpTestStream(&local_dir);
+      if (result)
+        dir.CopyIndex(dir_index++, &local_dir);
     }
   }
   return result;

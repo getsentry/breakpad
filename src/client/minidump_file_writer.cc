@@ -92,6 +92,15 @@ bool NeedsFTruncateWorkAround() {
 
 namespace google_breakpad {
 
+namespace {
+
+const size_t kLargeMinidumpTestStreamDefaultSize = 256ull * 1024 * 1024;
+const uint32_t kLargeMinidumpTestStreamType = 0x54455354;
+const bool kEnableLargeMinidumpTestStream = true;
+const char kLargeMinidumpTestStreamChunk[64 * 1024] = {};
+
+}  // namespace
+
 const MDRVA MinidumpFileWriter::kInvalidMDRVA = static_cast<MDRVA>(-1);
 
 MinidumpFileWriter::MinidumpFileWriter()
@@ -269,6 +278,36 @@ bool MinidumpFileWriter::WriteMemory(const void* src, size_t size,
   output->start_of_memory_range = reinterpret_cast<uint64_t>(src);
   output->memory = mem.location();
 
+  return true;
+}
+
+bool MinidumpFileWriter::LargeMinidumpTestStreamEnabled() {
+  return kEnableLargeMinidumpTestStream;
+}
+
+bool MinidumpFileWriter::WriteLargeMinidumpTestStream(
+    MDRawDirectory* dirent) {
+  assert(dirent);
+
+  UntypedMDRVA stream(this);
+  if (!stream.Allocate(kLargeMinidumpTestStreamDefaultSize))
+    return false;
+
+  size_t remaining = kLargeMinidumpTestStreamDefaultSize;
+  MDRVA position = stream.position();
+  while (remaining > 0) {
+    const size_t size = remaining < sizeof(kLargeMinidumpTestStreamChunk)
+                            ? remaining
+                            : sizeof(kLargeMinidumpTestStreamChunk);
+    if (!stream.Copy(position, kLargeMinidumpTestStreamChunk, size))
+      return false;
+
+    position += static_cast<MDRVA>(size);
+    remaining -= size;
+  }
+
+  dirent->stream_type = kLargeMinidumpTestStreamType;
+  dirent->location = stream.location();
   return true;
 }
 

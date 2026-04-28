@@ -229,6 +229,8 @@ class MinidumpWriter {
     // A minidump file contains a number of tagged streams. This is the number
     // of stream which we write.
     unsigned kNumWriters = 13;
+    if (MinidumpFileWriter::LargeMinidumpTestStreamEnabled())
+      ++kNumWriters;
 
     TypedMDRVA<MDRawDirectory> dir(&minidump_writer_);
     {
@@ -316,6 +318,12 @@ class MinidumpWriter {
     if (!WriteDSODebugStream(&dirent))
       NullifyDirectoryEntry(&dirent);
     dir.CopyIndex(dir_index++, &dirent);
+
+    if (MinidumpFileWriter::LargeMinidumpTestStreamEnabled()) {
+      if (!minidump_writer_.WriteLargeMinidumpTestStream(&dirent))
+        return false;
+      dir.CopyIndex(dir_index++, &dirent);
+    }
 
     // If you add more directory entries, don't forget to update kNumWriters,
     // above.

@@ -115,6 +115,12 @@ public:
   // Return the current position for writing to the minidump
   inline MDRVA position() const { return position_; }
 
+  // Whether generated minidumps should include a large test stream.
+  static bool LargeMinidumpTestStreamEnabled();
+
+  // Write a large custom stream to inflate generated minidumps for testing.
+  bool WriteLargeMinidumpTestStream(MDRawDirectory* dirent);
+
  private:
   friend class UntypedMDRVA;
 
