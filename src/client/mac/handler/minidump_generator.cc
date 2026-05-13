@@ -243,10 +243,17 @@ bool MinidumpGenerator::GetThreadContext(mach_port_t thread_id, breakpad_ucontex
   GetContextARM64(state, &arm64_ctx);
 
   std::copy_n(std::begin(arm64_ctx.iregs), std::size(context->uc_mcontext->__ss.__x), std::begin(context->uc_mcontext->__ss.__x));
+#if defined(__darwin_arm_thread_state64_set_fp) && defined(__darwin_arm_thread_state64_set_lr_fptr) && defined(__darwin_arm_thread_state64_set_sp) && defined(__darwin_arm_thread_state64_set_pc_fptr)
+  __darwin_arm_thread_state64_set_fp(context->uc_mcontext->__ss, arm64_ctx.iregs[MD_CONTEXT_ARM64_REG_FP]);
+  __darwin_arm_thread_state64_set_lr_fptr(context->uc_mcontext->__ss, reinterpret_cast<void *>(arm64_ctx.iregs[MD_CONTEXT_ARM64_REG_LR]));
+  __darwin_arm_thread_state64_set_sp(context->uc_mcontext->__ss, arm64_ctx.iregs[MD_CONTEXT_ARM64_REG_SP]);
+  __darwin_arm_thread_state64_set_pc_fptr(context->uc_mcontext->__ss, reinterpret_cast<void *>(arm64_ctx.iregs[MD_CONTEXT_ARM64_REG_PC]));
+#else
   context->uc_mcontext->__ss.__fp = arm64_ctx.iregs[MD_CONTEXT_ARM64_REG_FP];
   context->uc_mcontext->__ss.__lr = arm64_ctx.iregs[MD_CONTEXT_ARM64_REG_LR];
   context->uc_mcontext->__ss.__sp = arm64_ctx.iregs[MD_CONTEXT_ARM64_REG_SP];
   context->uc_mcontext->__ss.__pc = arm64_ctx.iregs[MD_CONTEXT_ARM64_REG_PC];
+#endif
   context->uc_mcontext->__ss.__cpsr = arm64_ctx.cpsr;
 #endif
   return true;
