@@ -103,7 +103,8 @@ void UTF32ToUTF16(const wchar_t* in, vector<uint16_t>* out) {
 }
 
 void UTF32ToUTF16Char(wchar_t in, uint16_t out[2]) {
-  const UTF32* source_ptr = reinterpret_cast<const UTF32*>(&in);
+  const UTF32 source = in;
+  const UTF32* source_ptr = &source;
   const UTF32* source_end_ptr = source_ptr + 1;
   uint16_t* target_ptr = out;
   uint16_t* target_end_ptr = target_ptr + 2;
