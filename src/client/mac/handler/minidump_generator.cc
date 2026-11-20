@@ -603,8 +603,6 @@ MinidumpGenerator::WriteContextARM64(breakpad_thread_state_data_t state,
                                      MDLocationDescriptor* register_location)
 {
   TypedMDRVA<MDRawContextARM64_Old> context(&writer_);
-  arm_thread_state64_t* machine_state =
-      reinterpret_cast<arm_thread_state64_t*>(state);
 
   if (!context.Allocate())
     return false;
